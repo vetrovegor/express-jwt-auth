@@ -19,7 +19,7 @@ class UserService {
         const activationLink = v4();
         const user = await User.create({ email, password: hashPassword, activationLink });
 
-        await mailService.sendActivationMail(email, activationLink);
+        await mailService.sendActivationMail(email, `${process.env.API_URL}/api/activate/${activationLink}`);
 
         const userDto = new UserDto(user);
         const tokens = tokenService.generateTokens({ ...userDto });
@@ -57,6 +57,10 @@ class UserService {
     }
 
     async logout(refreshToken) {
+        if (!refreshToken) {
+            throw ApiError.unauthorizedError();
+        }
+
         const deletedRowsCount = await tokenService.removeToken(refreshToken);
 
         return deletedRowsCount;
@@ -84,6 +88,21 @@ class UserService {
             ...tokens,
             user: userDto
         }
+    }
+
+    async activate(activationLink) {
+        const user = await User.findOne({
+            where: {
+                activationLink
+            }
+        });
+
+        if (!user) {
+            throw ApiError.badRequest('Некорректная ссылка активации');
+        }
+
+        user.isActivated = true;
+        await user.save();
     }
 
     async getUsers() {
